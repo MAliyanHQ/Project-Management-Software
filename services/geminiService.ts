@@ -1,15 +1,14 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Task, Project, User, Status } from "../types";
 
-// Initialize Gemini
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 export const generateProjectSummary = async (
   project: Project,
   tasks: Task[],
   users: User[]
 ): Promise<string> => {
   try {
+    // Initialize here to prevent crash on app load if process is undefined
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const model = "gemini-2.5-flash";
     
     // Prepare context data
@@ -50,6 +49,7 @@ export const generateProjectSummary = async (
 
 export const suggestSubtasks = async (taskTitle: string, taskDescription: string): Promise<string[]> => {
   try {
+     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
      const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: `For a task titled "${taskTitle}" with description "${taskDescription}", suggest 3-5 concrete subtasks.`,
