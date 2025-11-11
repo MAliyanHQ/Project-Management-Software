@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Layers, ArrowRight } from 'lucide-react';
@@ -45,7 +44,7 @@ export const Auth: React.FC = () => {
                 </div>
               </div>
               <h1 className="mt-6 text-3xl font-bold bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">Task Flow</h1>
-              <p className="text-sm text-slate-400 mt-2 tracking-widest uppercase text-[10px] font-semibold">by Sara Learning Global</p>
+              <p className="text-sm text-slate-400 mt-2 tracking-widest uppercase text-[10px] font-semibold">by M. Aliyan H. Qureshi</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
