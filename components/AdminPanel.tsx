@@ -2,15 +2,12 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Role, User } from '../types';
-import { UserPlus, Shield, Trash2, Eye, EyeOff, KeyRound, Save, X, FolderKanban, CheckSquare } from 'lucide-react';
+import { UserPlus, Shield, Trash2, KeyRound, Save, X, FolderKanban, CheckSquare } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
   const { users, addUser, updateUser, deleteUser, projects, updateProject } = useStore();
   
   const [newUser, setNewUser] = useState({ username: '', password: '', role: Role.MEMBER });
-  
-  // State for viewing passwords (set of user IDs)
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
   
   // State for editing password inline
   const [editingPassId, setEditingPassId] = useState<string | null>(null);
@@ -19,10 +16,10 @@ export const AdminPanel: React.FC = () => {
   // State for Project Assignment Modal
   const [managingUser, setManagingUser] = useState<User | null>(null);
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if(newUser.username && newUser.password) {
-        addUser({
+        await addUser({
             id: Date.now().toString(),
             username: newUser.username,
             password: newUser.password,
@@ -33,28 +30,23 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  const togglePasswordVisibility = (id: string) => {
-    const newSet = new Set(visiblePasswords);
-    if (newSet.has(id)) newSet.delete(id);
-    else newSet.add(id);
-    setVisiblePasswords(newSet);
-  };
-
   const startEditPass = (user: User) => {
       setEditingPassId(user.id);
-      setTempPass(user.password || '');
+      setTempPass(''); // Don't show existing hash, start empty
   };
 
-  const savePass = (user: User) => {
-      updateUser({ ...user, password: tempPass });
-      setEditingPassId(null);
-      setTempPass('');
+  const savePass = async (user: User) => {
+      if (tempPass) {
+        await updateUser({ ...user, password: tempPass });
+        setEditingPassId(null);
+        setTempPass('');
+      }
   };
 
-  const handleRoleChange = (userId: string, newRole: Role) => {
+  const handleRoleChange = async (userId: string, newRole: Role) => {
       const user = users.find(u => u.id === userId);
       if (user) {
-          updateUser({ ...user, role: newRole });
+          await updateUser({ ...user, role: newRole });
       }
   };
 
@@ -184,6 +176,7 @@ export const AdminPanel: React.FC = () => {
                                                     className="w-20 px-2 py-1 text-xs border rounded dark:bg-slate-800 dark:border-slate-600 dark:text-white"
                                                     value={tempPass}
                                                     onChange={e => setTempPass(e.target.value)}
+                                                    placeholder="New Pass"
                                                 />
                                                 <button onClick={() => savePass(user)} className="text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded p-1"><Save size={14}/></button>
                                                 <button onClick={() => setEditingPassId(null)} className="text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded p-1"><X size={14}/></button>
@@ -191,12 +184,13 @@ export const AdminPanel: React.FC = () => {
                                         ) : (
                                             <div className="flex items-center gap-2">
                                                 <div className="font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-1 rounded w-[60px] text-center truncate">
-                                                    {visiblePasswords.has(user.id) ? user.password : '••••••'}
+                                                    ••••••
                                                 </div>
-                                                <button onClick={() => togglePasswordVisibility(user.id)} className="text-slate-400 hover:text-brand-500">
-                                                    {visiblePasswords.has(user.id) ? <EyeOff size={14} /> : <Eye size={14} />}
-                                                </button>
-                                                <button onClick={() => startEditPass(user)} className="text-slate-400 hover:text-brand-500">
+                                                <button 
+                                                    onClick={() => startEditPass(user)} 
+                                                    className="text-slate-400 hover:text-brand-500"
+                                                    title="Reset Password"
+                                                >
                                                     <KeyRound size={14} />
                                                 </button>
                                             </div>

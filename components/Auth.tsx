@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Layers, ArrowRight } from 'lucide-react';
@@ -17,7 +18,8 @@ export const Auth: React.FC = () => {
     // Simulate networking delay for animation
     await new Promise(r => setTimeout(r, 800));
 
-    if (!login(username, password)) {
+    const success = await login(username, password);
+    if (!success) {
       setError('Invalid credentials.');
       setLoading(false);
     }

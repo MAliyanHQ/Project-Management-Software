@@ -2,11 +2,21 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User, Project, Task, Role, Status, Priority, Comment, Log, CustomReport, Announcement } from '../types';
 
-// Initial Mock Data
+// SHA-256 Hashing Utility
+async function hashPassword(password: string) {
+  const msgBuffer = new TextEncoder().encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Initial Mock Data with Hashed Passwords
+// '1234' -> 03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4
+// '123'  -> a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3
 const INITIAL_USERS: User[] = [
-  { id: 'u1', username: 'Aliyan', password: '1234', role: Role.ADMIN, fullName: 'Aliyan (Admin)' },
-  { id: 'u2', username: 'sarah', password: '123', role: Role.PROJECT_MANAGER, fullName: 'Sara Manager' },
-  { id: 'u3', username: 'john', password: '123', role: Role.MEMBER, fullName: 'John Dev' },
+  { id: 'u1', username: 'Aliyan', password: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', role: Role.ADMIN, fullName: 'Aliyan (Admin)' },
+  { id: 'u2', username: 'sarah', password: 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', role: Role.PROJECT_MANAGER, fullName: 'Sara Manager' },
+  { id: 'u3', username: 'john', password: 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', role: Role.MEMBER, fullName: 'John Dev' },
 ];
 
 const INITIAL_PROJECTS: Project[] = [
@@ -41,10 +51,10 @@ interface StoreContextType {
   logs: Log[];
   customReports: CustomReport[];
   announcements: Announcement[];
-  login: (u: string, p: string) => boolean;
+  login: (u: string, p: string) => Promise<boolean>;
   logout: () => void;
-  addUser: (user: User) => void;
-  updateUser: (user: User) => void;
+  addUser: (user: User) => Promise<void>;
+  updateUser: (user: User) => Promise<void>;
   deleteUser: (id: string) => void;
   addProject: (project: Project) => void;
   updateProject: (project: Project) => void;
@@ -123,13 +133,30 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setLogs(prev => [newLog, ...prev]);
   };
 
-  const login = (u: string, p: string) => {
-    const found = users.find(user => user.username === u && user.password === p);
-    if (found) {
-      setCurrentUser(found);
-      addLog('Login', `User logged in successfully`, found.username);
-      return true;
+  const login = async (u: string, p: string): Promise<boolean> => {
+    const found = users.find(user => user.username === u);
+    
+    if (found && found.password) {
+      const inputHash = await hashPassword(p);
+      
+      // 1. Check if password matches the hash (Secure)
+      if (found.password === inputHash) {
+        setCurrentUser(found);
+        addLog('Login', `User logged in successfully`, found.username);
+        return true;
+      }
+      
+      // 2. Migration: Check if stored password is still plain text (Legacy Support)
+      // If stored password matches input exactly (and isn't the hash), upgrade it.
+      if (found.password === p) {
+        const updatedUser = { ...found, password: inputHash };
+        setUsers(prev => prev.map(user => user.id === found.id ? updatedUser : user));
+        setCurrentUser(updatedUser);
+        addLog('Security Upgrade', `Migrated password to hash for ${found.username}`, 'System');
+        return true;
+      }
     }
+    
     addLog('Login Failed', `Failed login attempt for username: ${u}`, 'System');
     return false;
   };
@@ -139,19 +166,32 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setCurrentUser(null);
   };
 
-  const addUser = (user: User) => {
-    setUsers(prev => [...prev, user]);
-    addLog('User Created', `Created user ${user.username} as ${user.role}`);
+  const addUser = async (user: User) => {
+    const hashedPassword = user.password ? await hashPassword(user.password) : '';
+    const secureUser = { ...user, password: hashedPassword };
+    
+    setUsers(prev => [...prev, secureUser]);
+    addLog('User Created', `Created user ${secureUser.username} as ${secureUser.role}`);
   };
   
-  const updateUser = (updatedUser: User) => {
+  const updateUser = async (updatedUser: User) => {
     const oldUser = users.find(u => u.id === updatedUser.id);
-    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    let finalUser = { ...updatedUser };
+
+    // If password has changed, we assume it's a new plain text password that needs hashing
+    // We verify it's not already the existing hash
+    if (oldUser && updatedUser.password && oldUser.password !== updatedUser.password) {
+        finalUser.password = await hashPassword(updatedUser.password);
+        addLog('Password Changed', `Updated password for ${updatedUser.username}`);
+    }
+
+    setUsers(prev => prev.map(u => u.id === finalUser.id ? finalUser : u));
     
-    if (oldUser && oldUser.role !== updatedUser.role) {
-        addLog('Role Updated', `Changed role for ${updatedUser.username} from ${oldUser.role} to ${updatedUser.role}`);
-    } else {
-        addLog('User Updated', `Updated profile for ${updatedUser.username}`);
+    if (oldUser && oldUser.role !== finalUser.role) {
+        addLog('Role Updated', `Changed role for ${finalUser.username} from ${oldUser.role} to ${finalUser.role}`);
+    } else if (oldUser && oldUser.password === finalUser.password) {
+        // Only log general update if password didn't change (password log handled above)
+        addLog('User Updated', `Updated profile for ${finalUser.username}`);
     }
   };
 
