@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Role, User } from '../types';
@@ -26,8 +27,7 @@ export const AdminPanel: React.FC = () => {
             username: newUser.username,
             password: newUser.password,
             role: newUser.role,
-            fullName: newUser.username, // Auto-generated as per request
-            email: `${newUser.username.toLowerCase()}@sara.global` // Auto-generated
+            fullName: newUser.username, // Auto-generated
         });
         setNewUser({ username: '', password: '', role: Role.MEMBER });
     }
@@ -156,7 +156,6 @@ export const AdminPanel: React.FC = () => {
                                             </div>
                                             <div>
                                                 <p className="font-medium text-slate-900 dark:text-white">{user.username}</p>
-                                                <p className="text-xs text-slate-500">{user.email}</p>
                                             </div>
                                         </div>
                                     </td>

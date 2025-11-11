@@ -4,9 +4,9 @@ import { User, Project, Task, Role, Status, Priority, Comment, Log, CustomReport
 
 // Initial Mock Data
 const INITIAL_USERS: User[] = [
-  { id: 'u1', username: 'Aliyan', password: '1234', role: Role.ADMIN, fullName: 'Aliyan (Admin)', email: 'aliyan@sara.global' },
-  { id: 'u2', username: 'sarah', password: '123', role: Role.PROJECT_MANAGER, fullName: 'Sara Manager', email: 'sara@sara.global' },
-  { id: 'u3', username: 'john', password: '123', role: Role.MEMBER, fullName: 'John Dev', email: 'john@sara.global' },
+  { id: 'u1', username: 'Aliyan', password: '1234', role: Role.ADMIN, fullName: 'Aliyan (Admin)' },
+  { id: 'u2', username: 'sarah', password: '123', role: Role.PROJECT_MANAGER, fullName: 'Sara Manager' },
+  { id: 'u3', username: 'john', password: '123', role: Role.MEMBER, fullName: 'John Dev' },
 ];
 
 const INITIAL_PROJECTS: Project[] = [

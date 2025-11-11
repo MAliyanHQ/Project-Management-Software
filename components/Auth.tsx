@@ -18,7 +18,7 @@ export const Auth: React.FC = () => {
     await new Promise(r => setTimeout(r, 800));
 
     if (!login(username, password)) {
-      setError('Invalid credentials. Try "Aliyan" / "1234"');
+      setError('Invalid credentials.');
       setLoading(false);
     }
   };

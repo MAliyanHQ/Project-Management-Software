@@ -23,7 +23,6 @@ export interface User {
   password?: string; // In a real app, never store plain text!
   role: Role;
   fullName: string;
-  email: string;
 }
 
 export interface Comment {
