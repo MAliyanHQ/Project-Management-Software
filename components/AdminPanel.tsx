@@ -19,8 +19,14 @@ export const AdminPanel: React.FC = () => {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if(newUser.username && newUser.password) {
+        const userNumbers = users
+            .map(u => parseInt(u.id.replace('u', ''), 10))
+            .filter(n => !isNaN(n));
+        const maxId = userNumbers.length > 0 ? Math.max(...userNumbers) : 0;
+        const newId = `u${maxId + 1}`;
+
         await addUser({
-            id: Date.now().toString(),
+            id: newId,
             username: newUser.username,
             password: newUser.password,
             role: newUser.role,

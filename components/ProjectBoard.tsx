@@ -6,7 +6,7 @@ import { generateProjectSummary, suggestSubtasks } from '../services/geminiServi
 import { Plus, MoreVertical, Calendar, User as UserIcon, Sparkles, MessageSquare, Trash2, Edit2, Check, X, Info, Save } from 'lucide-react';
 
 export const ProjectBoard: React.FC = () => {
-  const { visibleProjects, tasks, users, currentUser, addProject, updateProject, addTask, updateTask, deleteTask, addComment, addLog } = useStore();
+  const { projects, visibleProjects, tasks, users, currentUser, addProject, updateProject, addTask, updateTask, deleteTask, addComment, addLog } = useStore();
   const [activeProjectId, setActiveProjectId] = useState<string>(visibleProjects[0]?.id || '');
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
@@ -127,8 +127,14 @@ export const ProjectBoard: React.FC = () => {
         }
     } else {
         // Create new
+        const taskNumbers = tasks
+            .map(t => parseInt(t.id.replace('t', ''), 10))
+            .filter(n => !isNaN(n));
+        const maxId = taskNumbers.length > 0 ? Math.max(...taskNumbers) : 0;
+        const newId = `t${maxId + 1}`;
+        
         addTask({
-            id: Date.now().toString(),
+            id: newId,
             projectId: activeProjectId,
             comments: [],
             ...taskForm
@@ -158,7 +164,12 @@ export const ProjectBoard: React.FC = () => {
 
   const handleCreateProject = () => {
     if(!currentUser) return;
-    const newId = Date.now().toString();
+    
+    const projectNumbers = projects
+        .map(p => parseInt(p.id.replace('p', ''), 10))
+        .filter(n => !isNaN(n));
+    const maxId = projectNumbers.length > 0 ? Math.max(...projectNumbers) : 0;
+    const newId = `p${maxId + 1}`;
     
     // Ensure creator is always a member
     const finalMembers = Array.from(new Set([...newProjectMembers, currentUser.id]));
