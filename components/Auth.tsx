@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
-import { Layers, ArrowRight } from 'lucide-react';
+import { Layers, ArrowRight, ArrowLeft } from 'lucide-react';
 
-export const Auth: React.FC = () => {
+interface AuthProps {
+  onBackClick: () => void;
+}
+
+export const Auth: React.FC<AuthProps> = ({ onBackClick }) => {
   const { login } = useStore();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -32,6 +36,14 @@ export const Auth: React.FC = () => {
          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-brand-600/30 rounded-full blur-[100px] animate-pulse delay-1000"></div>
          <div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-emerald-500/20 rounded-full blur-[80px] animate-bounce duration-[5000ms]"></div>
       </div>
+
+      <button 
+        onClick={onBackClick}
+        className="absolute top-6 left-6 z-20 flex items-center gap-2 text-slate-400 hover:text-white transition-colors group text-sm"
+      >
+        <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+        Back to Home
+      </button>
 
       <div className="relative z-10 w-full max-w-md p-6">
         {/* Glass Card */}
@@ -92,9 +104,14 @@ export const Auth: React.FC = () => {
             </form>
 
             <div className="mt-8 pt-6 border-t border-white/10 text-center">
-              <p className="text-xs text-slate-500">
-              
-              </p>
+                <p className="text-xs text-slate-500 mb-4">
+                    For demo purposes, use one of the following accounts:
+                </p>
+                <div className="text-xs text-slate-400 space-y-2 text-left bg-black/20 p-4 rounded-lg border border-white/10">
+                    <p><strong>Admin:</strong>&nbsp;&nbsp;&nbsp;username: <code className="bg-slate-700/50 px-1.5 py-0.5 rounded">Aliyan</code> / password: <code className="bg-slate-700/50 px-1.5 py-0.5 rounded">1234</code></p>
+                    <p><strong>Manager:</strong> username: <code className="bg-slate-700/50 px-1.5 py-0.5 rounded">sarah</code> / password: <code className="bg-slate-700/50 px-1.5 py-0.5 rounded">123</code></p>
+                    <p><strong>Member:</strong>&nbsp;&nbsp; username: <code className="bg-slate-700/50 px-1.5 py-0.5 rounded">john</code> / password: <code className="bg-slate-700/50 px-1.5 py-0.5 rounded">123</code></p>
+                </div>
             </div>
         </div>
       </div>

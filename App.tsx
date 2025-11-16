@@ -9,21 +9,37 @@ import { AdminPanel } from './components/AdminPanel';
 import { SystemLogs } from './components/SystemLogs';
 import { Auth } from './components/Auth';
 import { Role } from './types';
+import { LandingPage } from './components/LandingPage';
 
 const AppContent: React.FC = () => {
   const { currentUser } = useStore();
   const [currentView, setCurrentView] = useState('dashboard');
+  const [showAuth, setShowAuth] = useState(false);
+  const [wasLoggedIn, setWasLoggedIn] = useState(!!currentUser);
 
-  // Fix: Reset view to dashboard whenever user changes (login/logout)
-  // This prevents a non-admin from landing on 'users' or 'logs' view if the previous user was an Admin.
+  // This effect handles logout detection
+  useEffect(() => {
+    const isLoggedIn = !!currentUser;
+    if (wasLoggedIn && !isLoggedIn) {
+      // User just logged out
+      setShowAuth(true);
+    }
+    setWasLoggedIn(isLoggedIn);
+  }, [currentUser, wasLoggedIn]);
+
+  // This effect handles login and view resetting
   useEffect(() => {
     if (currentUser) {
       setCurrentView('dashboard');
+      setShowAuth(false); // Hide auth page on successful login
     }
   }, [currentUser]);
 
   if (!currentUser) {
-    return <Auth />;
+    if (showAuth) {
+      return <Auth onBackClick={() => setShowAuth(false)} />;
+    }
+    return <LandingPage onLoginClick={() => setShowAuth(true)} />;
   }
 
   const renderView = () => {

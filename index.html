@@ -6,7 +6,8 @@
     <title>Task Flow by M. Aliyan H. Qureshi</title>
     <script>
       // Prevents "process is not defined" crash in browser environments (Vite/Vercel)
-      window.process = window.process || { env: {} };
+      window.process = window.process || {};
+      window.process.env = window.process.env || {};
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
