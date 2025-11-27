@@ -102,7 +102,13 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const [customReports, setCustomReports] = useState<CustomReport[]>(() => {
     const saved = localStorage.getItem('tflow_custom_reports');
-    return saved ? JSON.parse(saved) : [];
+    const parsed = saved ? JSON.parse(saved) : [];
+    // Migration: ensure new fields exist for legacy reports
+    return parsed.map((r: any) => ({
+      ...r,
+      ownerId: r.ownerId || r.createdBy, // Fallback to creator if owner missing
+      sharedWith: r.sharedWith || []
+    }));
   });
 
   const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
@@ -276,7 +282,12 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const addCustomReport = (report: CustomReport) => {
-    setCustomReports(prev => [...prev, report]);
+    const newReport = {
+        ...report,
+        ownerId: report.ownerId || currentUser?.id || '',
+        sharedWith: report.sharedWith || []
+    };
+    setCustomReports(prev => [...prev, newReport]);
     addLog('Report Created', `Created custom report: ${report.title}`);
   };
 

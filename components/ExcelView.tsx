@@ -1,13 +1,16 @@
+
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
-import { Task, Priority, Status, Role, CustomReport, CustomColumn, CustomRow } from '../types';
-import { Download, Save, Check, ChevronDown, Plus, Trash2, FilePlus, GripVertical } from 'lucide-react';
+import { Task, Priority, Status, Role, CustomReport, CustomColumn, CustomRow, AccessLevel } from '../types';
+import { Download, Save, Check, ChevronDown, Plus, Trash2, FilePlus, GripVertical, Share2, ShieldCheck, User as UserIcon, X, Eye } from 'lucide-react';
 
 export const ExcelView: React.FC = () => {
   const { tasks, visibleProjects, users, updateTask, addLog, currentUser, customReports, addCustomReport, updateCustomReport, deleteCustomReport } = useStore();
   const [editCell, setEditCell] = useState<{id: string, field: string} | null>(null);
+  const [activeTab, setActiveTab] = useState<'OWNED' | 'SHARED'>('OWNED');
+  const [sharingReport, setSharingReport] = useState<CustomReport | null>(null);
   
-  const canEditCustomReports = currentUser?.role === Role.ADMIN || currentUser?.role === Role.PROJECT_MANAGER;
+  const canCreateReports = currentUser?.role === Role.ADMIN || currentUser?.role === Role.PROJECT_MANAGER;
 
   // --- Standard Report Logic ---
   // Filter tasks to only show those from visible projects
@@ -180,6 +183,7 @@ export const ExcelView: React.FC = () => {
       id: Date.now().toString(),
       title: 'New Custom Report',
       createdBy: currentUser.id,
+      ownerId: currentUser.id, // Explicitly set current user as owner
       createdAt: new Date().toISOString(),
       columns: [
         { id: 'c1', name: 'Item Name' },
@@ -188,10 +192,62 @@ export const ExcelView: React.FC = () => {
       ],
       rows: [
         { id: 'r1', data: { 'c1': 'Example Item', 'c2': 'Draft', 'c3': '' } }
-      ]
+      ],
+      sharedWith: []
     };
     addCustomReport(newReport);
   };
+
+  // Helper: Get effective permission for current user
+  const getPermission = (report: CustomReport): 'OWNER' | 'EDITOR' | 'VIEWER' => {
+      if (!currentUser) return 'VIEWER';
+      if (report.ownerId === currentUser.id) return 'OWNER';
+      const share = report.sharedWith?.find(s => s.userId === currentUser.id);
+      return share?.accessLevel || 'VIEWER';
+  };
+
+  const handleShareChange = (userId: string, value: string) => {
+    if (!sharingReport || !currentUser) return;
+    
+    // Transfer Ownership
+    if (value === 'OWNER') {
+        if(confirm(`Transfer ownership of "${sharingReport.title}" to this user? The report will move to their "Owned Reports" list.`)) {
+             const updated = {
+                ...sharingReport,
+                ownerId: userId,
+                // Automatically add the previous owner (me) as an editor so I don't lose access
+                sharedWith: [
+                    ...sharingReport.sharedWith.filter(s => s.userId !== userId),
+                    { userId: currentUser.id, accessLevel: 'EDITOR' as AccessLevel }
+                ]
+            };
+            updateCustomReport(updated);
+            setSharingReport(null); // Close modal as ownership transferred
+            addLog('Report Ownership Transferred', `Transferred report "${updated.title}" to user ID ${userId}`);
+        }
+        return;
+    }
+
+    // Remove Access
+    if (value === 'REMOVE') {
+         const updated = {
+            ...sharingReport,
+            sharedWith: sharingReport.sharedWith.filter(s => s.userId !== userId)
+        };
+        setSharingReport(updated); // Update local modal state
+        updateCustomReport(updated); // Update store
+        return;
+    }
+
+    // Handle Viewer/Editor
+    const currentShares = sharingReport.sharedWith.filter(s => s.userId !== userId);
+    const updated = {
+        ...sharingReport,
+        sharedWith: [...currentShares, { userId, accessLevel: value as AccessLevel }]
+    };
+    setSharingReport(updated);
+    updateCustomReport(updated);
+  }
 
   const handleAddCustomColumn = (report: CustomReport) => {
     const newColId = `c${Date.now()}`;
@@ -260,6 +316,16 @@ export const ExcelView: React.FC = () => {
       updateCustomReport({ ...report, title });
   };
 
+  // Filter reports based on active tab and ownership
+  const displayedReports = customReports.filter(r => {
+      if (activeTab === 'OWNED') {
+          return r.ownerId === currentUser?.id;
+      } else {
+          // Shared reports are those where current user is in the sharedWith list
+          return r.sharedWith?.some(s => s.userId === currentUser?.id);
+      }
+  });
+
   return (
     <div className="space-y-8 pb-20">
       {/* --- Standard Project Reports --- */}
@@ -279,7 +345,7 @@ export const ExcelView: React.FC = () => {
               </button>
           </div>
         </div>
-
+        {/* ... (Standard Report Table code remains same) ... */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden min-h-[400px]">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
@@ -326,18 +392,15 @@ export const ExcelView: React.FC = () => {
 
       {/* --- Custom Reports Section --- */}
       <div className="space-y-6">
-        <div className="flex justify-between items-end">
+        <div className="flex flex-col sm:flex-row justify-between items-end gap-4">
             <div>
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                     Custom Reports
-                    {canEditCustomReports && (
-                        <span className="bg-brand-100 dark:bg-brand-900 text-brand-600 dark:text-brand-400 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide">Editable</span>
-                    )}
                 </h2>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Create flexible data tables with custom columns.</p>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Flexible data tables with custom columns.</p>
             </div>
             
-            {canEditCustomReports && (
+            {canCreateReports && (
                 <button 
                     onClick={handleCreateCustomReport}
                     className="flex items-center gap-2 px-4 py-2 bg-slate-800 dark:bg-slate-700 text-white rounded-lg hover:bg-slate-700 dark:hover:bg-slate-600 transition-colors text-sm font-medium"
@@ -348,43 +411,89 @@ export const ExcelView: React.FC = () => {
             )}
         </div>
 
-        {customReports.length === 0 ? (
+        {/* Tab Navigation */}
+        <div className="flex border-b border-slate-200 dark:border-slate-800">
+            <button
+                onClick={() => setActiveTab('OWNED')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'OWNED'
+                    ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+            >
+                My Owned Reports
+            </button>
+            <button
+                onClick={() => setActiveTab('SHARED')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'SHARED'
+                    ? 'border-brand-500 text-brand-600 dark:text-brand-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+            >
+                Shared with Me
+            </button>
+        </div>
+
+        {displayedReports.length === 0 ? (
             <div className="bg-slate-50 dark:bg-slate-900/50 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-8 text-center">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 mb-4">
                     <FilePlus className="text-slate-400" size={24} />
                 </div>
-                <h3 className="text-slate-700 dark:text-slate-300 font-medium">No Custom Reports</h3>
-                <p className="text-slate-500 text-sm mt-1">Admins and Managers can create custom reports here.</p>
+                <h3 className="text-slate-700 dark:text-slate-300 font-medium">No Reports Found</h3>
+                <p className="text-slate-500 text-sm mt-1">
+                    {activeTab === 'OWNED' ? "You haven't created any custom reports yet." : "No reports have been shared with you."}
+                </p>
             </div>
         ) : (
             <div className="space-y-8">
-                {customReports.map(report => (
-                    <div key={report.id} className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-                        {/* Report Header */}
-                        <div className="bg-slate-50 dark:bg-slate-950 p-4 flex justify-between items-center border-b border-slate-200 dark:border-slate-800">
-                            <div className="flex items-center gap-3 flex-1">
-                                {canEditCustomReports ? (
-                                    <input 
-                                        className="text-lg font-bold bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-white outline-none focus:border-brand-500 transition-all w-full max-w-md"
-                                        value={report.title}
-                                        onChange={(e) => handleUpdateReportTitle(report, e.target.value)}
-                                    />
-                                ) : (
-                                    <h3 className="text-lg font-bold text-slate-800 dark:text-white px-2 py-1">{report.title}</h3>
-                                )}
-                                <span className="text-xs text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                    {report.rows.length} rows
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {canEditCustomReports && (
-                                    <>
+                {displayedReports.map(report => {
+                    const permission = getPermission(report);
+                    const canEditStructure = permission === 'OWNER' || permission === 'EDITOR';
+                    const canEditData = permission === 'OWNER' || permission === 'EDITOR';
+                    const isOwner = permission === 'OWNER';
+
+                    return (
+                        <div key={report.id} className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                            {/* Report Header */}
+                            <div className="bg-slate-50 dark:bg-slate-950 p-4 flex justify-between items-center border-b border-slate-200 dark:border-slate-800">
+                                <div className="flex items-center gap-3 flex-1">
+                                    {isOwner ? (
+                                        <input 
+                                            className="text-lg font-bold bg-transparent border border-transparent hover:border-slate-300 dark:hover:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-white outline-none focus:border-brand-500 transition-all w-full max-w-md"
+                                            value={report.title}
+                                            onChange={(e) => handleUpdateReportTitle(report, e.target.value)}
+                                        />
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-lg font-bold text-slate-800 dark:text-white px-2 py-1">{report.title}</h3>
+                                            <span className="text-[10px] uppercase bg-slate-200 dark:bg-slate-800 text-slate-500 px-2 py-0.5 rounded">{permission}</span>
+                                        </div>
+                                    )}
+                                    <span className="text-xs text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2 py-0.5 rounded-full whitespace-nowrap hidden sm:inline-block">
+                                        {report.rows.length} rows
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {isOwner && (
+                                        <button 
+                                            onClick={() => setSharingReport(report)}
+                                            className="flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400 px-3 py-1.5 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
+                                        >
+                                            <Share2 size={14} /> Share
+                                        </button>
+                                    )}
+                                    
+                                    {canEditStructure && (
                                         <button 
                                             onClick={() => handleAddCustomColumn(report)}
                                             className="flex items-center gap-1 text-xs bg-brand-50 text-brand-600 dark:bg-brand-900/20 dark:text-brand-400 px-3 py-1.5 rounded-md hover:bg-brand-100 dark:hover:bg-brand-900/40 transition-colors"
                                         >
-                                            <Plus size={14} /> Add Column
+                                            <Plus size={14} /> Col
                                         </button>
+                                    )}
+                                    
+                                    {isOwner && (
                                         <button 
                                             onClick={() => deleteCustomReport(report.id)}
                                             className="text-slate-400 hover:text-red-500 p-2 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -392,92 +501,156 @@ export const ExcelView: React.FC = () => {
                                         >
                                             <Trash2 size={16} />
                                         </button>
-                                    </>
-                                )}
+                                    )}
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Report Table */}
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left border-collapse">
-                                <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
-                                    <tr>
-                                        <th className="px-4 py-3 w-12 text-center text-slate-400 font-light">#</th>
-                                        {report.columns.map(col => (
-                                            <th key={col.id} className="px-4 py-3 min-w-[150px] group relative border-r border-slate-100 dark:border-slate-800 last:border-0">
-                                                <div className="flex items-center justify-between">
-                                                    {canEditCustomReports ? (
-                                                        <input 
-                                                            className="bg-transparent w-full outline-none text-xs font-bold text-slate-500 uppercase placeholder:text-slate-300"
-                                                            value={col.name}
-                                                            onChange={(e) => handleUpdateColumnName(report, col.id, e.target.value)}
-                                                        />
-                                                    ) : (
-                                                        <span>{col.name}</span>
-                                                    )}
-                                                    {canEditCustomReports && (
+                            {/* Report Table */}
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left border-collapse">
+                                    <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800">
+                                        <tr>
+                                            <th className="px-4 py-3 w-12 text-center text-slate-400 font-light">#</th>
+                                            {report.columns.map(col => (
+                                                <th key={col.id} className="px-4 py-3 min-w-[150px] group relative border-r border-slate-100 dark:border-slate-800 last:border-0">
+                                                    <div className="flex items-center justify-between">
+                                                        {canEditStructure ? (
+                                                            <input 
+                                                                className="bg-transparent w-full outline-none text-xs font-bold text-slate-500 uppercase placeholder:text-slate-300"
+                                                                value={col.name}
+                                                                onChange={(e) => handleUpdateColumnName(report, col.id, e.target.value)}
+                                                            />
+                                                        ) : (
+                                                            <span>{col.name}</span>
+                                                        )}
+                                                        {canEditStructure && (
+                                                            <button 
+                                                                onClick={() => handleDeleteColumn(report, col.id)}
+                                                                className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-opacity"
+                                                            >
+                                                                <Trash2 size={12} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                            ))}
+                                            {canEditStructure && <th className="w-10"></th>}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {report.rows.map((row, index) => (
+                                            <tr key={row.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                                                <td className="px-4 py-2 text-center text-xs text-slate-400">{index + 1}</td>
+                                                {report.columns.map(col => (
+                                                    <td key={col.id} className="px-4 py-2 border-r border-slate-50 dark:border-slate-800/50 last:border-0 p-0">
+                                                        {canEditData ? (
+                                                            <input 
+                                                                className="w-full bg-transparent outline-none py-1 px-0 text-slate-700 dark:text-slate-300 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:text-brand-600 dark:focus:text-brand-400"
+                                                                placeholder="..."
+                                                                value={row.data[col.id] || ''}
+                                                                onChange={(e) => handleUpdateCustomCell(report, row.id, col.id, e.target.value)}
+                                                            />
+                                                        ) : (
+                                                            <span className="text-slate-700 dark:text-slate-300 block py-1">{row.data[col.id] || '-'}</span>
+                                                        )}
+                                                    </td>
+                                                ))}
+                                                {canEditStructure && (
+                                                    <td className="px-2 text-center">
                                                         <button 
-                                                            onClick={() => handleDeleteColumn(report, col.id)}
+                                                            onClick={() => handleDeleteRow(report, row.id)}
                                                             className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-opacity"
                                                         >
-                                                            <Trash2 size={12} />
+                                                            <Trash2 size={14} />
                                                         </button>
-                                                    )}
-                                                </div>
-                                            </th>
+                                                    </td>
+                                                )}
+                                            </tr>
                                         ))}
-                                        {canEditCustomReports && <th className="w-10"></th>}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {report.rows.map((row, index) => (
-                                        <tr key={row.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                            <td className="px-4 py-2 text-center text-xs text-slate-400">{index + 1}</td>
-                                            {report.columns.map(col => (
-                                                <td key={col.id} className="px-4 py-2 border-r border-slate-50 dark:border-slate-800/50 last:border-0 p-0">
-                                                    {canEditCustomReports ? (
-                                                        <input 
-                                                            className="w-full bg-transparent outline-none py-1 px-0 text-slate-700 dark:text-slate-300 placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:text-brand-600 dark:focus:text-brand-400"
-                                                            placeholder="..."
-                                                            value={row.data[col.id] || ''}
-                                                            onChange={(e) => handleUpdateCustomCell(report, row.id, col.id, e.target.value)}
-                                                        />
-                                                    ) : (
-                                                        <span className="text-slate-700 dark:text-slate-300">{row.data[col.id] || '-'}</span>
-                                                    )}
-                                                </td>
-                                            ))}
-                                            {canEditCustomReports && (
-                                                <td className="px-2 text-center">
-                                                    <button 
-                                                        onClick={() => handleDeleteRow(report, row.id)}
-                                                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-opacity"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </td>
-                                            )}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        
-                        {canEditCustomReports && (
-                            <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-                                <button 
-                                    onClick={() => handleAddCustomRow(report)}
-                                    className="w-full py-2 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:border-brand-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/10 transition-all flex items-center justify-center gap-2 text-sm font-medium"
-                                >
-                                    <Plus size={16} /> Add Row
-                                </button>
+                                    </tbody>
+                                </table>
                             </div>
-                        )}
-                    </div>
-                ))}
+                            
+                            {canEditStructure && (
+                                <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+                                    <button 
+                                        onClick={() => handleAddCustomRow(report)}
+                                        className="w-full py-2 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:border-brand-400 hover:text-brand-500 hover:bg-brand-50 dark:hover:bg-brand-900/10 transition-all flex items-center justify-center gap-2 text-sm font-medium"
+                                    >
+                                        <Plus size={16} /> Add Row
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         )}
       </div>
+
+      {/* Share Modal */}
+      {sharingReport && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+              <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6">
+                  <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                             <Share2 size={20} className="text-brand-500"/> Share Report
+                        </h3>
+                        <p className="text-sm text-slate-500">Manage access for "{sharingReport.title}"</p>
+                      </div>
+                      <button onClick={() => setSharingReport(null)} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                  </div>
+                  
+                  <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                      {users.filter(u => u.id !== currentUser?.id).map(user => {
+                          // Determine current access level
+                          const share = sharingReport.sharedWith?.find(s => s.userId === user.id);
+                          const currentAccess = share ? share.accessLevel : 'NONE';
+                          
+                          return (
+                              <div key={user.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-800">
+                                  <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-600 dark:text-slate-400 font-bold text-xs">
+                                          {user.username.charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                          <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{user.username}</p>
+                                          <p className="text-[10px] text-slate-500">{user.role}</p>
+                                      </div>
+                                  </div>
+                                  
+                                  <select 
+                                      value={currentAccess}
+                                      onChange={(e) => handleShareChange(user.id, e.target.value)}
+                                      className={`text-xs font-semibold rounded px-2 py-1 outline-none border transition-colors cursor-pointer
+                                        ${currentAccess === 'NONE' ? 'text-slate-500 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900' : ''}
+                                        ${currentAccess === 'VIEWER' ? 'text-blue-600 border-blue-200 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800' : ''}
+                                        ${currentAccess === 'EDITOR' ? 'text-emerald-600 border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-800' : ''}
+                                      `}
+                                  >
+                                      <option value="NONE">No Access</option>
+                                      <option value="VIEWER">Viewer</option>
+                                      <option value="EDITOR">Editor</option>
+                                      <option disabled>──────────</option>
+                                      <option value="OWNER">Make Owner (Admin)</option>
+                                  </select>
+                              </div>
+                          );
+                      })}
+                  </div>
+                  
+                  <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                      <button 
+                        onClick={() => setSharingReport(null)}
+                        className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors font-medium text-sm"
+                      >
+                        Done
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

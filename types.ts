@@ -83,13 +83,22 @@ export interface CustomRow {
   data: Record<string, string>; // Key is column ID, value is cell content
 }
 
+export type AccessLevel = 'VIEWER' | 'EDITOR';
+
+export interface ReportShare {
+  userId: string;
+  accessLevel: AccessLevel;
+}
+
 export interface CustomReport {
   id: string;
   title: string;
+  ownerId: string;
   createdBy: string;
   createdAt: string;
   columns: CustomColumn[];
   rows: CustomRow[];
+  sharedWith: ReportShare[];
 }
 
 export interface AppState {
