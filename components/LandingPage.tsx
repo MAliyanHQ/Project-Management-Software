@@ -180,7 +180,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick }) => {
           {/* Features Grid Section */}
           <section className="pb-24 pt-12">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold animate-in fade-in duration-500 mb-4">All Your Project Needs in One Platform</h2>
+              <h2 className="text-3xl font-bold animate-in fade-in duration-500 mb-4">All Your Project Needs in One AI-Powered Platform</h2>
               <p className="text-slate-400 max-w-2xl mx-auto">Everything you need to manage your work efficiently in one unified workspace.</p>
             </div>
 
